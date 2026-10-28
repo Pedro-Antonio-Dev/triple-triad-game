@@ -76,4 +76,8 @@ public class Player {
     public String getNome() {
         return this.nome;
     }
+
+    public List<Card> getMao() {
+        return mao;
+    }
 }

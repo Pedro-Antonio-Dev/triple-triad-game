@@ -61,6 +61,10 @@ public class Card {
         return tipo;
     }
 
+    public void setDono(Player dono) {
+        this.dono = dono;
+    }
+
     @Override
     public String toString() {
         return "Card{" +
