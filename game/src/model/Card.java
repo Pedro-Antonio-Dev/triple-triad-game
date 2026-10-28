@@ -39,10 +39,39 @@ public class Card {
                 return this.direita;
 
             default:
-                throw new Exception("")
+                return 0;
 
         }
 
     }
 
+    public String getId() {
+        return id;
+    }
+
+    public String getNome() {
+        return nome;
+    }
+
+    public Player getDono() {
+        return dono;
+    }
+
+    public CardType getTipo() {
+        return tipo;
+    }
+
+    @Override
+    public String toString() {
+        return "Card{" +
+                "id='" + id + '\'' +
+                ", nome='" + nome + '\'' +
+                ", topo=" + topo +
+                ", baixo=" + baixo +
+                ", esquerda=" + esquerda +
+                ", direita=" + direita +
+                ", dono=" + dono +
+                ", tipo=" + tipo +
+                '}';
+    }
 }
