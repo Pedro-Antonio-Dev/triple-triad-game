@@ -12,6 +12,10 @@ public class Card {
     private CardType tipo;
 
     public Card(CardType tipo, Player dono, int direita, int esquerda, int baixo, int topo, String nome, String id) {
+        validarValor(direita);
+        validarValor(esquerda);
+        validarValor(baixo);
+        validarValor(topo);
         this.tipo = tipo;
         this.dono = dono;
         this.direita = direita;
@@ -20,6 +24,18 @@ public class Card {
         this.topo = topo;
         this.nome = nome;
         this.id = id;
+    }
+
+    private void validarValor(int valor) {
+        if (valor < 0 || valor > 10) {
+            throw new IllegalArgumentException(
+                    "O valor de um lado deve estar entre 0 e 10."
+            );
+        }
+    }
+
+    public static String formatarValor(int valor) {
+        return valor == 10 ? "A" : Integer.toString(valor);
     }
 
     public int getValor(Direction direcao) {

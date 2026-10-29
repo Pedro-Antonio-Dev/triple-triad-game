@@ -85,10 +85,18 @@ public class Board {
             for (int c = 0; c < colunas; c++) {
                 Card carta = grade[l][c].getCarta();
                 if (carta != null) {
-                    sb.append(carta.getDono().getNome().charAt(0)).append(" ");
+                    sb.append(String.format(
+                            "[P%d T:%s E:%s D:%s B:%s]",
+                            carta.getDono().getId(),
+                            Card.formatarValor(carta.getValor(model.Direction.TOP)),
+                            Card.formatarValor(carta.getValor(model.Direction.LEFT)),
+                            Card.formatarValor(carta.getValor(model.Direction.RIGHT)),
+                            Card.formatarValor(carta.getValor(model.Direction.BOTTOM))
+                    ));
                 } else {
-                    sb.append(". ");
+                    sb.append("[        vazio        ]");
                 }
+                sb.append(' ');
             }
             sb.append("\n");
         }
