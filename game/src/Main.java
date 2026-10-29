@@ -6,7 +6,11 @@ import game.GameState;
 import model.Card;
 import model.CardType;
 import model.Player;
+import rules.AllOpenRule;
 import rules.GameRule;
+import rules.PlusRule;
+import rules.SuddenDeathRule;
+import rules.SwapRule;
 import ui.TerminalUI;
 
 import java.util.ArrayList;
@@ -15,63 +19,49 @@ import java.util.List;
 public class Main {
 
     public static void main(String[] args) {
+        TerminalUI ui = new TerminalUI();
+        List<GameRule> regrasAtivas = new ArrayList<>();
 
-        // 1. Criar as mãos dos jogadores
+        if (!selecionarRegras(ui, regrasAtivas)) {
+            return;
+        }
+
         List<Card> maoJogador1 = new ArrayList<>();
         List<Card> maoJogador2 = new ArrayList<>();
 
-        // 2. Criar os jogadores
         Player jogador1 = new Player(
                 1,
                 maoJogador1,
-                0,
+                5,
                 "Jogador 1"
         );
 
         Player jogador2 = new Player(
                 2,
                 maoJogador2,
-                0,
+                5,
                 "Jogador 2"
         );
 
-        // 3. Criar o baralho
         List<Card> baralho = new ArrayList<>();
-
-        CardType tipo = CardType.values()[0];
-
-        for (int i = 1; i <= 10; i++) {
+        CardType tipo = CardType.NEUTRAL;
+        for (int i = 0; i < 10; i++) {
             Card carta = new Card(
                     tipo,
                     null,
-                    1 + (i % 10), // direita
-                    1 + ((i + 1) % 10), // esquerda
-                    1 + ((i + 2) % 10), // baixo
-                    1 + ((i + 3) % 10), // topo
-                    "Carta " + i,
-                    String.valueOf(i)
+                    i % 11,
+                    (i + 1) % 11,
+                    (i + 2) % 11,
+                    (i + 3) % 11,
+                    "Carta " + (i + 1),
+                    String.valueOf(i + 1)
             );
-
             baralho.add(carta);
         }
 
-        // 4. Criar o tabuleiro
         Board tabuleiro = new Board();
-
-        // 5. Configurar as regras ativas
-        List<GameRule> regrasAtivas = new ArrayList<>();
-
-        /*
-         * Adicione aqui as instâncias das regras concretas
-         * que você já implementou.
-         */
-
-        // 6. Criar o estado inicial
-        GameState estado = GameState.values()[0];
-
-        // 7. Criar o jogo
         Game game = new Game(
-                estado,
+                GameState.AGUARDANDO,
                 regrasAtivas,
                 baralho,
                 tabuleiro,
@@ -79,11 +69,45 @@ public class Main {
                 jogador1
         );
 
-        // 8. Criar a interface e o controlador
-        TerminalUI ui = new TerminalUI();
         GameController controller = new GameController(game, ui);
-
-        // 9. Iniciar a partida
         controller.iniciarPartida();
+    }
+
+    private static boolean selecionarRegras(
+            TerminalUI ui,
+            List<GameRule> regrasAtivas
+    ) {
+        var allOpen = ui.solicitarAtivacaoRegra("All Open");
+        if (allOpen.isEmpty()) {
+            return false;
+        }
+        if (allOpen.get()) {
+            regrasAtivas.add(new AllOpenRule());
+        }
+
+        var swap = ui.solicitarAtivacaoRegra("Swap");
+        if (swap.isEmpty()) {
+            return false;
+        }
+        if (swap.get()) {
+            regrasAtivas.add(new SwapRule());
+        }
+
+        var plus = ui.solicitarAtivacaoRegra("Plus");
+        if (plus.isEmpty()) {
+            return false;
+        }
+        if (plus.get()) {
+            regrasAtivas.add(new PlusRule());
+        }
+
+        var suddenDeath = ui.solicitarAtivacaoRegra("Sudden Death");
+        if (suddenDeath.isEmpty()) {
+            return false;
+        }
+        if (suddenDeath.get()) {
+            regrasAtivas.add(new SuddenDeathRule());
+        }
+        return true;
     }
 }

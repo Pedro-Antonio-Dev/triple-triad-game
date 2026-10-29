@@ -77,6 +77,10 @@ public class Player {
         return this.nome;
     }
 
+    public int getId() {
+        return id;
+    }
+
     public List<Card> getMao() {
         return mao;
     }

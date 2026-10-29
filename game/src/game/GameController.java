@@ -1,292 +1,230 @@
-
 package game;
 
 import board.Board;
-import board.Cell;
+import board.Position;
 import model.Card;
 import model.Direction;
 import model.Player;
+import rules.GameRule;
 import ui.TerminalUI;
 
 import java.util.List;
-import java.util.Scanner;
+import java.util.Optional;
 
 public class GameController {
 
     private final Game game;
-    private final Scanner scanner;
+    private final TerminalUI ui;
 
     private Player jogadorAtual;
     private boolean partidaEncerrada;
+    private String regraDaNovaRodada;
 
     public GameController(Game game, TerminalUI ui) {
         if (game == null) {
-            throw new IllegalArgumentException(
-                    "O jogo não pode ser nulo."
-            );
+            throw new IllegalArgumentException("O jogo não pode ser nulo.");
+        }
+        if (ui == null) {
+            throw new IllegalArgumentException("A interface não pode ser nula.");
         }
 
         this.game = game;
-        this.scanner = new Scanner(System.in);
+        this.ui = ui;
         this.partidaEncerrada = false;
     }
 
     public void iniciarPartida() {
         game.distribuirCartas();
-
         jogadorAtual = game.getJogador1();
+        game.setEstado(GameState.EM_ANDAMENTO);
+        ui.exibirTitulo();
 
-        System.out.println("================================");
-        System.out.println("         TRIPLE TRIAD");
-        System.out.println("================================");
+        for (GameRule regra : game.getRegrasAtivas()) {
+            regra.aoIniciarPartida(game).forEach(ui::exibirMensagem);
+        }
+        ui.exibirPontuacao(game.getJogador1(), game.getJogador2());
 
+        int rodada = 1;
         while (!partidaEncerrada) {
-            executarTurno();
-
-            if (verificarFimDePartida()) {
-                partidaEncerrada = true;
-            }
-        }
-
-        finalizarPartida();
-    }
-
-    public void executarTurno() {
-        if (partidaEncerrada) {
-            return;
-        }
-
-        exibirEstadoJogo();
-
-        Card carta = selecionarCarta();
-
-        if (carta == null) {
-            return;
-        }
-
-        int linha;
-        int coluna;
-
-        while (true) {
-            System.out.print("Linha (0-2): ");
-            linha = scanner.nextInt();
-
-            System.out.print("Coluna (0-2): ");
-            coluna = scanner.nextInt();
-
-            if (validarJogada(carta, linha, coluna)) {
-                break;
+            while (!verificarFimDePartida()) {
+                if (!executarTurno()) {
+                    partidaEncerrada = true;
+                    return;
+                }
             }
 
-            System.out.println(
-                    "Posição inválida ou ocupada. Tente novamente."
+            if (!iniciarNovaRodadaSeNecessario()) {
+                finalizarPartida();
+                return;
+            }
+
+            rodada++;
+            jogadorAtual = jogadorAtual == game.getJogador1()
+                    ? game.getJogador2()
+                    : game.getJogador1();
+            ui.exibirInicioNovaRodada(
+                    rodada, jogadorAtual, regraDaNovaRodada
             );
         }
+    }
 
-        realizarJogada(carta, linha, coluna);
+    private boolean executarTurno() {
+        Player oponente = obterOponente(jogadorAtual);
+        boolean mostrarMaos = game.getRegrasAtivas().stream()
+                .anyMatch(regra ->
+                        regra.podeExibirMaoDoOponente(game, jogadorAtual));
+
+        if (!mostrarMaos && !ui.aguardarConfirmacaoDeTurno(jogadorAtual)) {
+            return false;
+        }
+
+        ui.exibirEstadoJogo(
+                jogadorAtual,
+                oponente,
+                game.getTabuleiro(),
+                mostrarMaos
+        );
+
+        Optional<Card> cartaEscolhida = ui.solicitarCarta(jogadorAtual);
+        if (cartaEscolhida.isEmpty()) {
+            return false;
+        }
+
+        Optional<Position> posicaoEscolhida =
+                ui.solicitarPosicao(game.getTabuleiro());
+        if (posicaoEscolhida.isEmpty()) {
+            return false;
+        }
+
+        Card carta = cartaEscolhida.get();
+        Position posicao = posicaoEscolhida.get();
+        realizarJogada(carta, posicao);
 
         if (!verificarFimDePartida()) {
-            alternarJogador();
+            jogadorAtual = oponente;
         }
+        return true;
     }
 
-    private void exibirEstadoJogo() {
-        System.out.println("\n--------------------------------");
-        System.out.println(
-                "Vez de: " + jogadorAtual.getNome()
-        );
-
-        System.out.println("\nTabuleiro:");
-        System.out.println(
-                game.getTabuleiro().imprimirTabuleiro()
-        );
-
-        System.out.println("Sua mão:");
-        exibirMao();
+    public boolean validarJogada(Card carta, int linha, int coluna) {
+        return carta != null
+                && jogadorAtual != null
+                && jogadorAtual.possuiCarta(carta)
+                && game.getTabuleiro().isPosicaoVazia(linha, coluna);
     }
 
-    private void exibirMao() {
-        List<Card> mao = jogadorAtual.getMao();
-
-        for (int i = 0; i < mao.size(); i++) {
-            Card carta = mao.get(i);
-
-            System.out.printf(
-                    "%d - %s | TOP: %d | RIGHT: %d"
-                            + " | BOTTOM: %d | LEFT: %d%n",
-                    i + 1,
-                    carta.getNome(),
-                    carta.getValor(Direction.TOP),
-                    carta.getValor(Direction.RIGHT),
-                    carta.getValor(Direction.BOTTOM),
-                    carta.getValor(Direction.LEFT)
-            );
-        }
-    }
-
-    private Card selecionarCarta() {
-        List<Card> mao = jogadorAtual.getMao();
-
-        if (mao.isEmpty()) {
-            System.out.println(
-                    "Este jogador não possui cartas disponíveis."
-            );
-            return null;
-        }
-
-        while (true) {
-            System.out.print("Escolha uma carta pelo número: ");
-
-            int escolha = scanner.nextInt();
-
-            if (escolha >= 1 && escolha <= mao.size()) {
-                return mao.get(escolha - 1);
-            }
-
-            System.out.println(
-                    "Número inválido. Escolha novamente."
-            );
-        }
-    }
-
-    public boolean validarJogada(
-            Card carta,
-            int linha,
-            int coluna
-    ) {
-        if (carta == null || jogadorAtual == null) {
-            return false;
-        }
-
-        if (!jogadorAtual.possuiCarta(carta)) {
-            return false;
-        }
-
+    private void realizarJogada(Card carta, Position posicao) {
         Board tabuleiro = game.getTabuleiro();
-
-        return tabuleiro.isPosicaoValida(linha, coluna)
-                && tabuleiro.isPosicaoVazia(linha, coluna);
-    }
-
-    private void realizarJogada(
-            Card carta,
-            int linha,
-            int coluna
-    ) {
-        Board tabuleiro = game.getTabuleiro();
+        if (!validarJogada(carta, posicao.getLinha(), posicao.getColuna())) {
+            throw new IllegalArgumentException("Jogada inválida.");
+        }
 
         carta.setDono(jogadorAtual);
-
-        tabuleiro.colocarCarta(linha, coluna, carta);
-
+        tabuleiro.colocarCarta(posicao.getLinha(), posicao.getColuna(), carta);
         jogadorAtual.removerCarta(carta);
+        ui.exibirJogada(jogadorAtual, carta, posicao);
 
-        System.out.println(
-                jogadorAtual.getNome()
-                        + " colocou a carta "
-                        + carta.getNome()
-                        + " na posição ("
-                        + linha + ", " + coluna + ")."
-        );
-
-        aplicarCapturas(carta, linha, coluna);
-
-        System.out.println("\nTabuleiro após a jogada:");
-        System.out.println(tabuleiro.imprimirTabuleiro());
+        aplicarCapturas(carta, posicao);
+        ui.exibirTabuleiro(tabuleiro);
+        ui.exibirPontuacao(game.getJogador1(), game.getJogador2());
     }
 
-    private void aplicarCapturas(
-            Card carta,
-            int linha,
-            int coluna
-    ) {
-        Board tabuleiro = game.getTabuleiro();
+    private void aplicarCapturas(Card carta, Position posicao) {
+        for (GameRule regra : game.getRegrasAtivas()) {
+            List<Position> capturasEspeciais =
+                    regra.aplicarCapturasEspeciais(game, posicao, carta)
+                            .stream()
+                            .distinct()
+                            .toList();
+            if (!capturasEspeciais.isEmpty()) {
+                ui.exibirMensagem(
+                        "Regra " + regra.getNome()
+                                + " ativada: vizinhos com somas iguais foram capturados."
+                );
+                for (Position posicaoCapturada : capturasEspeciais) {
+                    capturarCarta(posicaoCapturada);
+                }
+            }
+        }
 
-        compararVizinho(
-                carta, linha - 1, coluna,
-                Direction.TOP, Direction.BOTTOM
-        );
-
-        compararVizinho(
-                carta, linha + 1, coluna,
-                Direction.BOTTOM, Direction.TOP
-        );
-
-        compararVizinho(
-                carta, linha, coluna - 1,
-                Direction.LEFT, Direction.RIGHT
-        );
-
-        compararVizinho(
-                carta, linha, coluna + 1,
-                Direction.RIGHT, Direction.LEFT
-        );
+        compararVizinho(carta, posicao, -1, 0,
+                Direction.TOP, Direction.BOTTOM);
+        compararVizinho(carta, posicao, 1, 0,
+                Direction.BOTTOM, Direction.TOP);
+        compararVizinho(carta, posicao, 0, -1,
+                Direction.LEFT, Direction.RIGHT);
+        compararVizinho(carta, posicao, 0, 1,
+                Direction.RIGHT, Direction.LEFT);
     }
 
     private void compararVizinho(
             Card cartaJogada,
-            int linhaVizinho,
-            int colunaVizinho,
+            Position posicao,
+            int deslocamentoLinha,
+            int deslocamentoColuna,
             Direction direcaoJogada,
             Direction direcaoVizinho
     ) {
+        int linha = posicao.getLinha() + deslocamentoLinha;
+        int coluna = posicao.getColuna() + deslocamentoColuna;
         Board tabuleiro = game.getTabuleiro();
-
-        if (!tabuleiro.isPosicaoValida(
-                linhaVizinho, colunaVizinho
-        )) {
+        if (!tabuleiro.isPosicaoValida(linha, coluna)) {
             return;
         }
 
-        Cell celula = tabuleiro.getCell(
-                linhaVizinho, colunaVizinho
-        );
-
-        Card cartaVizinha = celula.getCarta();
-
-        if (cartaVizinha == null) {
+        Card cartaVizinha = tabuleiro.getCell(linha, coluna).getCarta();
+        if (cartaVizinha == null
+                || cartaVizinha.getDono() == null
+                || cartaVizinha.getDono() == jogadorAtual) {
             return;
         }
 
-        if (cartaVizinha.getDono() == null) {
+        if (cartaJogada.getValor(direcaoJogada)
+                > cartaVizinha.getValor(direcaoVizinho)) {
+            capturarCarta(new Position(linha, coluna));
+        }
+    }
+
+    private void capturarCarta(Position posicao) {
+        Card carta = game.getTabuleiro()
+                .getCell(posicao.getLinha(), posicao.getColuna())
+                .getCarta();
+        if (carta == null || carta.getDono() == null
+                || carta.getDono() == jogadorAtual) {
             return;
         }
 
-        if (cartaVizinha.getDono().equals(jogadorAtual)) {
-            return;
-        }
+        Player donoAnterior = carta.getDono();
+        carta.setDono(jogadorAtual);
+        jogadorAtual.ganharPonto();
+        donoAnterior.perderPonto();
+        verificarConservacaoDaPontuacao();
+        ui.exibirCartaCapturada(jogadorAtual, carta, donoAnterior);
+    }
 
-        int valorJogada = cartaJogada.getValor(direcaoJogada);
-        int valorVizinha = cartaVizinha.getValor(direcaoVizinho);
-
-        System.out.printf(
-                "Comparando %s (%d) contra %s (%d).%n",
-                direcaoJogada,
-                valorJogada,
-                direcaoVizinho,
-                valorVizinha
-        );
-
-        if (valorJogada > valorVizinha) {
-            cartaVizinha.setDono(jogadorAtual);
-
-            jogadorAtual.ganharPonto();
-
-            cartaVizinha.getDono().ganharPonto();
-
-            System.out.println(
-                    "Carta capturada: "
-                            + cartaVizinha.getNome()
+    private void verificarConservacaoDaPontuacao() {
+        if (game.getJogador1().getPontos()
+                + game.getJogador2().getPontos() != 10) {
+            throw new IllegalStateException(
+                    "A soma dos pontos dos jogadores deve permanecer 10."
             );
         }
     }
 
-    private void alternarJogador() {
-        if (jogadorAtual.equals(game.getJogador1())) {
-            jogadorAtual = game.getJogador2();
-        } else {
-            jogadorAtual = game.getJogador1();
+    private Player obterOponente(Player jogador) {
+        return jogador == game.getJogador1()
+                ? game.getJogador2()
+                : game.getJogador1();
+    }
+
+    private boolean iniciarNovaRodadaSeNecessario() {
+        for (GameRule regra : game.getRegrasAtivas()) {
+            if (regra.aoFinalizarPartida(game)) {
+                regraDaNovaRodada = regra.getNome();
+                return true;
+            }
         }
+        return false;
     }
 
     public boolean verificarFimDePartida() {
@@ -294,46 +232,13 @@ public class GameController {
     }
 
     public void finalizarPartida() {
-        Board tabuleiro = game.getTabuleiro();
-
-        Player jogador1 = game.getJogador1();
-        Player jogador2 = game.getJogador2();
-
-        int cartasJogador1 =
-                tabuleiro.contarCartasJogador(jogador1);
-
-        int cartasJogador2 =
-                tabuleiro.contarCartasJogador(jogador2);
-
-        System.out.println("\n================================");
-        System.out.println("          FIM DE JOGO");
-        System.out.println("================================");
-
-        System.out.println(tabuleiro.imprimirTabuleiro());
-
-        System.out.println(
-                jogador1.getNome()
-                        + " | Cartas: " + cartasJogador1
-                        + " | Pontos: " + jogador1.getPontos()
+        partidaEncerrada = true;
+        game.setEstado(GameState.FINALIZADO);
+        ui.exibirResultado(
+                game.getJogador1(),
+                game.getJogador2(),
+                game.getTabuleiro()
         );
-
-        System.out.println(
-                jogador2.getNome()
-                        + " | Cartas: " + cartasJogador2
-                        + " | Pontos: " + jogador2.getPontos()
-        );
-
-        if (cartasJogador1 > cartasJogador2) {
-            System.out.println(
-                    "Vencedor: " + jogador1.getNome()
-            );
-        } else if (cartasJogador2 > cartasJogador1) {
-            System.out.println(
-                    "Vencedor: " + jogador2.getNome()
-            );
-        } else {
-            System.out.println("A partida terminou empatada!");
-        }
     }
 
     public Player getJogadorAtual() {

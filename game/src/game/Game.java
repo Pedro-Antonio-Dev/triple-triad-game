@@ -5,6 +5,7 @@ import model.Card;
 import model.Player;
 import rules.GameRule;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class Game {
@@ -26,18 +27,46 @@ public class Game {
     }
 
     public void distribuirCartas() {
-
-        int cont = 0;
-
-        while(jogador1.getMao().size() < 5 && jogador2.getMao().size() < 5) {
-
-            jogador1.getMao().add(this.baralho.get(cont));
-            jogador2.getMao().add(this.baralho.get(cont+1));
-
-            cont+=2;
-
+        if (baralho.size() < 10) {
+            throw new IllegalStateException(
+                    "O baralho precisa conter pelo menos 10 cartas."
+            );
         }
 
+        for (int i = 0; i < 10; i += 2) {
+            Card cartaJogador1 = baralho.get(i);
+            Card cartaJogador2 = baralho.get(i + 1);
+            cartaJogador1.setDono(jogador1);
+            cartaJogador2.setDono(jogador2);
+            jogador1.adicionarCarta(cartaJogador1);
+            jogador2.adicionarCarta(cartaJogador2);
+        }
+    }
+
+    public void prepararProximaRodadaMorteSubita() {
+        List<Card> cartasJogador1 = new ArrayList<>();
+        List<Card> cartasJogador2 = new ArrayList<>();
+
+        for (int linha = 0; linha < 3; linha++) {
+            for (int coluna = 0; coluna < 3; coluna++) {
+                Card carta = tabuleiro.getCell(linha, coluna).getCarta();
+                if (carta == null) {
+                    continue;
+                }
+                if (carta.getDono() == jogador1) {
+                    cartasJogador1.add(carta);
+                } else if (carta.getDono() == jogador2) {
+                    cartasJogador2.add(carta);
+                }
+            }
+        }
+
+        jogador1.getMao().clear();
+        jogador1.getMao().addAll(cartasJogador1);
+        jogador2.getMao().clear();
+        jogador2.getMao().addAll(cartasJogador2);
+        tabuleiro = new Board();
+        estado = GameState.EM_ANDAMENTO;
     }
 
     public GameState getEstado() {
@@ -62,5 +91,9 @@ public class Game {
 
     public Player getJogador1() {
         return jogador1;
+    }
+
+    public void setEstado(GameState estado) {
+        this.estado = estado;
     }
 }
